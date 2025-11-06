@@ -1,22 +1,21 @@
-# AEON UX100 · A-1 · AI Adoption App
+# AEON UX100 · A-1 · AI Adoption App (Root)
 
-## Run (local)
+모든 파일을 **GitHub 레포 루트**에 두고 실행하도록 정리했습니다.
+
+## 실행 (로컬/Streamlit Cloud 공통)
 ```bash
 pip install -r requirements.txt
-streamlit run apps/aeon_ux100_a1_adoption_app.py
+streamlit run aeon_ux100_a1_adoption_app.py
 ```
 
-## Repo structure (suggested)
+## 파일 구성
 ```
 / (repo root)
-├─ apps/
-│  └─ aeon_ux100_a1_adoption_app.py
-├─ data/  (Excel dataset: UX_Comparison_100_ALL_v2_withProxyIndicators.xlsx)
-├─ docs/  (slides & notes)
-├─ requirements.txt
+├─ aeon_ux100_a1_adoption_app.py   # Streamlit 앱
+├─ requirements.txt                # 의존성
 └─ README.md
 ```
 
-## Notes
-- The app expects an Excel file (sheet name: **Data**) that contains **Company** and **AI Adoption Index (0–5)**.
-- You can upload the file from the UI or type a server path.
+## 사용법
+- 앱 상단에서 **엑셀 업로드** 또는 서버 경로 입력
+- 엑셀의 시트 이름은 **Data**, 필수 컬럼은 **Company**, **AI Adoption Index (0–5)**
