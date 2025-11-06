@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+from plotly import graph_objects as go
 
 st.set_page_config(page_title="UX100 · A-1 · AI Adoption Score Distribution", layout="wide")
 st.title("UX100 · A-1 · AI Adoption Score Distribution")
@@ -91,17 +92,18 @@ score10 += 0.4*oss_bonus.astype(float)
 score10 += 0.4*blog_bonus.astype(float)
 score10 += 0.2*ethics_bonus.astype(float)
 score10 += 0.4*analytics_bonus.astype(float)
-
 score10 = score10.clip(1, 10).round(1)                    # clamp & 0.1 precision
-df["_AI_Adoption_10"] = score10
 
+df["_AI_Adoption_10"] = score10
 dfv = df[["Company", ai_col, "_AI_Adoption_10"]].dropna().copy()
 dfv.rename(columns={ai_col: "AI_Adoption_5"}, inplace=True)
 
-# --- Distribution: Histogram with hover (1–10 score) ---
+# ---------- Chart 1: Histogram (1–10) with quartile shading ----------
 st.subheader("분포(Distribution) — 1–10 세분화 점수")
-st.markdown("<span style='font-size:12px;color:#6b7280'>Histogram of derived 1–10 AI adoption scores. Hover to see company & values.</span>", unsafe_allow_html=True)
+st.markdown("<span style='font-size:12px;color:#6b7280'>Histogram of derived 1–10 AI adoption scores; hover to see company & values.</span>", unsafe_allow_html=True)
+
 bins = st.slider("구간 수 (bins)", min_value=5, max_value=30, value=12, step=1)
+
 fig = px.histogram(
     dfv,
     x="_AI_Adoption_10",
@@ -109,17 +111,41 @@ fig = px.histogram(
     hover_data={"Company": True, "_AI_Adoption_10": ":.1f", "AI_Adoption_5": ":.1f"},
     opacity=0.85
 )
-fig.update_traces(marker_line_width=0.5)
+
+# Quartiles & shading
+p25 = float(dfv["_AI_Adoption_10"].quantile(0.25))
+p50 = float(dfv["_AI_Adoption_10"].quantile(0.50))
+p75 = float(dfv["_AI_Adoption_10"].quantile(0.75))
+fig.add_vrect(x0=p25, x1=p75, fillcolor="LightSkyBlue", opacity=0.15, line_width=0)
+fig.add_vline(x=p25, line_dash="dash", line_color="SteelBlue")
+fig.add_vline(x=p50, line_dash="dot", line_color="SlateGray")
+fig.add_vline(x=p75, line_dash="dash", line_color="SteelBlue")
+
 fig.update_layout(margin=dict(l=10,r=10,t=30,b=10), height=420, xaxis_title="AI Adoption (1–10)")
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Company-level view: scatter with jitter (fix for blank strip plot) ---
+# Explanation under Chart 1
+st.markdown(
+    "- **해설:** 사분위 범위(IQR, 파란 음영)는 가운데 50% 기업이 위치한 구간을 뜻합니다. 중앙선(점선)은 중앙값(P50)입니다. "
+    "우측 꼬리의 높음은 공개·오픈·거버넌스 신호가 누적된 기업이 많음을 시사합니다."
+)
+st.markdown("<span style='font-size:12px;color:#6b7280'>Explanation: The shaded region marks the interquartile range (P25–P75). The dotted line is the median (P50). A heavy right tail suggests many firms combine disclosure/open/governance signals.</span>", unsafe_allow_html=True)
+
+# Optional ECDF
+if st.toggle("누적분포(ECDF) 보기 / Show ECDF"):
+    ecdf_fig = px.ecdf(dfv, x="_AI_Adoption_10")
+    ecdf_fig.update_layout(margin=dict(l=10,r=10,t=10,b=10), height=260, xaxis_title="AI Adoption (1–10)")
+    st.plotly_chart(ecdf_fig, use_container_width=True)
+    st.markdown("- **해설:** ECDF는 특정 점수 이하에 속한 누적 비율을 보여줍니다. 급격한 구간은 기업이 몰려 있는 점수대를 뜻합니다.")
+    st.markdown("<span style='font-size:12px;color:#6b7280'>ECDF shows the cumulative share at or below each score; steep sections indicate crowded ranges.</span>", unsafe_allow_html=True)
+
+# ---------- Chart 2: Company scatter with jitter ----------
 st.subheader("기업별 분포 시각화(Company-level view) — 1–10 점수")
 st.markdown("<span style='font-size:12px;color:#6b7280'>Scatter with slight jitter; hover for company & values.</span>", unsafe_allow_html=True)
 
 np.random.seed(7)
 jitter = np.random.uniform(-0.05, 0.05, size=len(dfv))
-dfv["_y"] = 0.0 + jitter
+dfv["_y"] = jitter
 
 fig2 = px.scatter(
     dfv.sort_values("_AI_Adoption_10"),
@@ -129,16 +155,24 @@ fig2 = px.scatter(
     hover_data={"_AI_Adoption_10":":.1f", "AI_Adoption_5":":.1f", "_y": False},
 )
 fig2.update_layout(
-    yaxis={"visible": False},
+    yaxis_title="jitter (no metric)",
+    yaxis={"visible": True, "showticklabels": False},
     margin=dict(l=10,r=10,t=10,b=10),
-    height=320,
+    height=340,
     xaxis_title="AI Adoption (1–10)"
 )
 st.plotly_chart(fig2, use_container_width=True)
 
-# --- Summary stats (new score) ---
+# Explanation under Chart 2
+st.markdown("- **해설:** 세로축은 값의 의미가 없으며, 점이 겹치지 않도록 미세한 난수 지터를 준 것입니다. 실제 의미는 가로축(1–10 점수)에만 있습니다.")
+st.markdown("<span style='font-size:12px;color:#6b7280'>Explanation: The vertical axis carries no metric; it is random jitter to prevent overlap. Only the horizontal axis (1–10 score) has meaning.</span>", unsafe_allow_html=True)
+
+# ---------- Summary stats (incl. skew/kurt) ----------
 st.subheader("요약 통계(Summary stats) — 1–10 점수")
 desc = dfv["_AI_Adoption_10"].describe()
+skew = float(dfv["_AI_Adoption_10"].skew())
+kurt = float(dfv["_AI_Adoption_10"].kurt())  # Fisher’s definition
+
 left, right = st.columns(2)
 with left:
     st.metric("유효 표본 수", int(desc["count"]))
@@ -146,11 +180,16 @@ with left:
     st.metric("중앙값", f"{desc['50%']:.2f}")
 with right:
     st.metric("표준편차", f"{desc['std']:.2f}")
-    st.metric("최솟값", f"{desc['min']:.1f}")
-    st.metric("최댓값", f"{desc['max']:.1f}")
-st.markdown("<span style='font-size:12px;color:#6b7280'>N (valid), Mean, Median, Std, Min, Max computed on the 1–10 derived score.</span>", unsafe_allow_html=True)
+    st.metric("왜도(skewness)", f"{skew:.2f}")
+    st.metric("첨도(kurtosis)", f"{kurt:.2f}")
 
-# --- Top & Bottom cohorts (by 1–10 score) ---
+st.markdown(
+    "- **해설:** 왜도>0이면 오른쪽 꼬리가 길고, 첨도>0이면 정규분포보다 꼬리가 두껍습니다. "
+    "상·하위 코호트가 두드러질수록 중앙 구간 빈도가 낮아질 수 있습니다."
+)
+st.markdown("<span style='font-size:12px;color:#6b7280'>Explanation: Positive skew → longer right tail; positive kurtosis → heavier tails than normal. Polarization can thin the mid-range.</span>", unsafe_allow_html=True)
+
+# ---------- Top & Bottom cohorts ----------
 st.subheader("상위·하위 그룹(Top & Bottom cohorts) — 1–10 점수 기준")
 top_n = st.number_input("상·하위 표시 개수", min_value=3, max_value=15, value=10, step=1)
 top = dfv.sort_values("_AI_Adoption_10", ascending=False).head(top_n)[["Company","_AI_Adoption_10","AI_Adoption_5"]]
@@ -161,41 +200,12 @@ st.dataframe(top.reset_index(drop=True))
 st.write("**하위 기업(Bottom companies)**")
 st.dataframe(bot.reset_index(drop=True))
 
-# --- Narrative below charts ---
-st.markdown("### 데이터가 보여주는 바 (What the data shows)")
-p75 = dfv["_AI_Adoption_10"].quantile(0.75); p25 = dfv["_AI_Adoption_10"].quantile(0.25)
+# Explanation under cohorts
 st.markdown(
-    f"- 1–10 점수의 중심 경향은 **평균 {desc['mean']:.2f} / 중앙값 {desc['50%']:.2f}**이며, 사분위 범위(IQR)는 **{p25:.2f}–{p75:.2f}**입니다.\n"
-    f"- **상위 {top_n}** 기업은 공개성/오픈 활동/거버넌스 신호에 따른 가점으로 우측 꼬리에 분포하는 경향이 있습니다."
+    "- **해설:** 상위권은 공개(모델/스택)·오픈(OSS/블로그)·거버넌스(윤리/분석) 신호의 **누적 효과**가 반영된 결과입니다. "
+    "하위권은 이러한 신호 부재 또는 일부만 보유한 기업이 많습니다."
 )
-st.markdown("<span style='font-size:12px;color:#6b7280'>Central tendency and IQR on the 1–10 derived score; right-tail clustering reflects disclosure/open/governance bonuses.</span>", unsafe_allow_html=True)
-
-# --- Keywords ---
-st.markdown("### 키워드 (Keywords)")
-st.write(", ".join([
-    "AI 도입(1–10)", "모델/스택 공개 가점", "OSS/블로그 가점", "윤리/분석 가점",
-    "엔터프라이즈 적합성", "거버넌스", "디자인옵스"
-]))
-st.markdown("<span style='font-size:12px;color:#6b7280'>AI adoption (1–10), model/stack disclosure, OSS/blog, ethics/analytics, enterprise readiness, governance, design ops.</span>", unsafe_allow_html=True)
-
-# --- Insights ---
-st.markdown("### 인사이트 (Insights)")
-st.markdown(
-    "1) **세분화 점수로 상·중·하 변별력 확대.** 공개·오픈·거버넌스 신호가 실제 채택 성숙도의 차이를 잘 설명합니다.\n"
-    "2) **보너스 신호의 축적 효과.** 모델 공개 + OSS + 블로그 + 윤리/분석이 겹칠수록 1–10 점수는 유의미하게 상승합니다.\n"
-    "3) **하위권 개선 포인트 명확.** 단순 도입(5점 스케일)에서 멈춘 조직은 *공개/거버넌스/오픈 활동* 강화로 곧바로 점수 개선 여지가 있습니다."
-)
-st.markdown("<span style='font-size:12px;color:#6b7280'>1) Granularity improves separation. 2) Cumulative bonus effects. 3) Clear levers for lower cohort improvement.</span>", unsafe_allow_html=True)
-
-# --- Top vs Bottom bullets ---
-st.markdown("### 상위 vs 하위 특징 (Top vs. Bottom differences)")
-def bulletize(dfpart, label_kr, label_en):
-    names = " · ".join(dfpart["Company"].head(7).tolist())
-    st.markdown(f"- **{label_kr}**: {names}" + (" …" if len(dfpart)>7 else ""))
-    st.markdown(f"<span style='font-size:12px;color:#6b7280'>- <b>{label_en}</b>: {names}" + (" …" if len(dfpart)>7 else "") + "</span>", unsafe_allow_html=True)
-
-bulletize(top, "상위 그룹", "Top cohort")
-bulletize(bot, "하위 그룹", "Bottom cohort")
+st.markdown("<span style='font-size:12px;color:#6b7280'>Explanation: Top cohort reflects cumulative effects of disclosure, open activity, and governance signals; lower cohort lacks these signals.</span>", unsafe_allow_html=True)
 
 if auto_loaded:
     st.caption("루트의 데이터셋(ux_100_dataset.xlsx)에서 자동 로드되었습니다. 자동 로드 시 업로드 UI는 숨겨집니다.")
