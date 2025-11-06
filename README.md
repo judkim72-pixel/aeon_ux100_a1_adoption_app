@@ -1,4 +1,4 @@
-# UX100 · A-1 · AI Adoption App (Root)
+# UX100 · A-1 · AI Adoption App
 
 ## 실행 (로컬/Streamlit Cloud 공통)
 ```bash
