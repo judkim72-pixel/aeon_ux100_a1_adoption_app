@@ -1,6 +1,4 @@
-# AEON UX100 · A-1 · AI Adoption App (Root)
-
-모든 파일을 **GitHub 레포 루트**에 두고 실행하도록 정리했습니다.
+# UX100 · A-1 · AI Adoption App (Root)
 
 ## 실행 (로컬/Streamlit Cloud 공통)
 ```bash
