@@ -6,10 +6,19 @@ import plotly.express as px
 st.set_page_config(page_title="AEON UX100 · A-1 · AI Adoption", layout="wide")
 st.title("AEON UX100 · A-1 · AI Adoption Score Distribution")
 
+DEFAULT_DATA_PATH = "/mnt/data/ux_100_dataset.xlsx"
+default_exists = False
+try:
+    import os
+    default_exists = os.path.exists(DEFAULT_DATA_PATH)
+except Exception:
+    pass
+
+
 st.markdown("Upload the consolidated Excel (sheet: **Data**) or provide a path below.")
 
 uploaded = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"])
-path_in = st.text_input("Or type a server path", value="", help="Leave blank if using file uploader.")
+path_in = st.text_input("Or type a server path", value=(DEFAULT_DATA_PATH if default_exists else ""), help="Leave blank if using file uploader.")
 
 @st.cache_data
 def load_df_from_upload(file):
