@@ -1,4 +1,5 @@
 
+import os
 import pandas as pd
 import streamlit as st
 import plotly.express as px
@@ -6,53 +7,56 @@ import plotly.express as px
 st.set_page_config(page_title="AEON UX100 · A-1 · AI Adoption", layout="wide")
 st.title("AEON UX100 · A-1 · AI Adoption Score Distribution")
 
-DEFAULT_DATA_PATH = "/mnt/data/ux_100_dataset.xlsx"
-default_exists = False
-try:
-    import os
-    default_exists = os.path.exists(DEFAULT_DATA_PATH)
-except Exception:
-    pass
-
-
-st.markdown("Upload the consolidated Excel (sheet: **Data**) or provide a path below.")
-
-uploaded = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"])
-path_in = st.text_input("Or type a server path", value=(DEFAULT_DATA_PATH if default_exists else ""), help="Leave blank if using file uploader.")
-
-@st.cache_data
-def load_df_from_upload(file):
-    return pd.read_excel(file, sheet_name="Data")
-
-@st.cache_data
-def load_df_from_path(path):
-    return pd.read_excel(path, sheet_name="Data")
-
+# --- Auto-load root dataset if present ---
+DEFAULT_DATA_PATH = "ux_100_dataset.xlsx"  # repo root filename
 df = None
-if uploaded is not None:
-    try:
-        df = load_df_from_upload(uploaded)
-    except Exception as e:
-        st.error(f"Failed to read uploaded file: {e}")
+auto_loaded = False
 
-elif path_in:
+if os.path.exists(DEFAULT_DATA_PATH):
     try:
-        df = load_df_from_path(path_in)
+        df = pd.read_excel(DEFAULT_DATA_PATH, sheet_name="Data")
+        auto_loaded = True
+        st.success(f"Loaded default dataset: {DEFAULT_DATA_PATH}")
     except Exception as e:
-        st.error(f"Failed to read path: {e}")
+        st.warning(f"Found {DEFAULT_DATA_PATH} but failed to read: {e}")
+
+# --- Fallback UI only when auto-load not available ---
+if df is None:
+    st.markdown("Upload the consolidated Excel (sheet: **Data**) or provide a path below.")
+    uploaded = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"])
+    path_in = st.text_input("Or type a server path", value="", help="Leave blank if using file uploader.")
+
+    @st.cache_data
+    def load_df_from_upload(file):
+        return pd.read_excel(file, sheet_name="Data")
+
+    @st.cache_data
+    def load_df_from_path(path):
+        return pd.read_excel(path, sheet_name="Data")
+
+    if uploaded is not None:
+        try:
+            df = load_df_from_upload(uploaded)
+        except Exception as e:
+            st.error(f"Failed to read uploaded file: {e}")
+    elif path_in:
+        try:
+            df = load_df_from_path(path_in)
+        except Exception as e:
+            st.error(f"Failed to read path: {e}")
 
 if df is None:
     st.info("Waiting for data... (sheet name must be 'Data' and include 'Company' and 'AI Adoption Index (0–5)')")
     st.stop()
 
-# Identify AI column
+# --- Identify AI column ---
 ai_candidates = [c for c in df.columns if "AI Adoption Index" in str(c)]
 if not ai_candidates:
     st.error("Column 'AI Adoption Index (0–5)' not found in 'Data' sheet.")
     st.stop()
 ai_col = ai_candidates[0]
 
-# Coerce numeric and filter
+# --- Coerce numeric and filter ---
 df[ai_col] = pd.to_numeric(df[ai_col], errors="coerce")
 dfv = df[[ "Company", ai_col ]].dropna().copy()
 dfv.rename(columns={ai_col: "AI_Adoption_Index"}, inplace=True)
@@ -137,4 +141,7 @@ def bulletize(dfpart, label):
 st.markdown(bulletize(top, "Top cohort"))
 st.markdown(bulletize(bot, "Bottom cohort"))
 
-st.caption("Note: Snapshot-only. For trends, capture the same fields monthly/quarterly.")
+if auto_loaded:
+    st.caption("Loaded from repo-root dataset (ux_100_dataset.xlsx). Upload UI is hidden when auto-load succeeds.")
+else:
+    st.caption("Snapshot-only. For trends, capture the same fields monthly/quarterly.")
